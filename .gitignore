@@ -1,0 +1,20 @@
+# Environments
+venv/
+.env
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# AI Models (Too large for GitHub, downloaded via setup script)
+*.pth
+*.onnx
+
+# Data, Caches & Logs
+*.log
+dump.rdb
+/uploads/
+/results/
+.DS_Store

@@ -1,0 +1,18 @@
+[1;31m2026-02-25 19:11:38.977926480 [E:onnxruntime:Default, provider_bridge_ort.cc:2359 TryGetProviderInfo_CUDA] /onnxruntime_src/onnxruntime/core/session/provider_bridge_ort.cc:1952 onnxruntime::Provider& onnxruntime::ProviderLibrary::Get() [ONNXRuntimeError] : 1 : FAIL : Failed to load library /opt/venv/lib/python3.13/site-packages/onnxruntime/capi/libonnxruntime_providers_cuda.so with error: libcublasLt.so.12: cannot open shared object file: No such file or directory
+[m
+Loading image...
+Running PrimarySegmenter...
+Saved cutout to data/test_images/petela_out_perfect_hex.png
+Running Hex QC Gates...
+
+--- QC JSON RESULT ---
+{
+  "pass": false,
+  "haze_ratio": 0.0,
+  "halo_score": 0.221566,
+  "orphan_count": 65,
+  "reasons": [
+    "halo_score>0.12",
+    "orphan_islands"
+  ]
+}

@@ -1,0 +1,10 @@
+# AI Agent Setup Instructions
+You are configuring the `bg-removal-service` for the user. This is an Agent-Centric, zero-touch installation.
+
+1. Check the user's OS and hardware context.
+2. Run `python setup_env.py` to autonomously detect hardware, verify disk space, and route the correct PyTorch/dependency installations. 
+3. DO NOT ask the user for [Y/n] confirmation. The script is zero-touch.
+4. If the script fails, read the stderr, explain the issue to the user (e.g., insufficient disk space), and stop.
+5. Once complete, run `npm install` and `npm run dev` in the `frontend/web-ui` directory to start the frontend.
+6. Run `bash restart_all.sh` (or start Redis, RQ worker, and uvicorn API manually) to boot the backend.
+7. Inform the user the app is fully optimized for their hardware and live at http://localhost:5173.

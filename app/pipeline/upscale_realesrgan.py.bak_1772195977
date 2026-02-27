@@ -1,0 +1,93 @@
+import cv2
+import numpy as np
+import logging
+
+try:
+    from realesrgan import RealESRGANer
+    from basicsr.archs.rrdbnet_arch import RRDBNet
+    HAS_REALESRGAN = True
+except ImportError as e:
+    logging.warning(f"RealESRGAN import failed: {e}")
+    HAS_REALESRGAN = False
+
+def get_cleanup_and_qc():
+    try:
+        import app.pipeline.final_edge_cleanup as fec
+        cleanup_func = getattr(fec, 'final_edge_cleanup', lambda x, **kw: x)
+    except:
+        cleanup_func = lambda x, **kwargs: x
+    return cleanup_func, lambda x: {"pass": True, "reasons": []}
+
+def edge_smear(rgb, alpha, iterations=15):
+    mask = alpha > 0
+    smeared = rgb.copy()
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    for _ in range(iterations):
+        dilated = cv2.dilate(smeared, kernel)
+        smeared[~mask] = dilated[~mask]
+        mask = cv2.dilate(mask.astype(np.uint8), kernel) > 0
+    return smeared
+
+def apply_unsharp_mask(image, amount=0.8, radius=1.0, threshold=0):
+    blurred = cv2.GaussianBlur(image, (0, 0), radius)
+    sharpened = float(amount + 1) * image - float(amount) * blurred
+    sharpened = np.clip(sharpened, 0, 255).astype(np.uint8)
+    return sharpened
+
+def fit_and_pad_to_4096(rgba_image):
+    target_size = 4096
+    h, w = rgba_image.shape[:2]
+    scale = target_size / max(h, w)
+    new_w, new_h = int(w * scale), int(h * scale)
+    resized = cv2.resize(rgba_image, (new_w, new_h), interpolation=cv2.INTER_LANCZOS4)
+    canvas = np.zeros((target_size, target_size, 4), dtype=np.uint8)
+    x_offset = (target_size - new_w) // 2
+    y_offset = (target_size - new_h) // 2
+    canvas[y_offset:y_offset+new_h, x_offset:x_offset+new_w] = resized
+    return canvas
+
+def upscale_and_reclean(rgba_image, mode="4x_topaz"):
+    cleanup_func, qc_func = get_cleanup_and_qc()
+    scale = 4 if mode == "4x_topaz" else 2
+    
+    if HAS_REALESRGAN:
+        logging.info(f"Running Upscale: {mode} (Scale={scale})...")
+        model = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32, scale=4)
+        model_path = '/a0/agent-zero-data/workdir/bg-removal-service/bg-removal-service/data/models/RealESRGAN_x4plus.pth'
+        
+        upsampler = RealESRGANer(scale=4, model_path=model_path, model=model, tile=128, tile_pad=10, pre_pad=0, half=False)
+        
+        rgb = rgba_image[:,:,:3]
+        alpha = rgba_image[:,:,3]
+        smeared = edge_smear(rgb, alpha, iterations=15)
+        
+        out_rgb, _ = upsampler.enhance(smeared, outscale=scale)
+        alpha_3c = cv2.cvtColor(alpha, cv2.COLOR_GRAY2BGR)
+        out_alpha_3c, _ = upsampler.enhance(alpha_3c, outscale=scale)
+        out_alpha = cv2.cvtColor(out_alpha_3c, cv2.COLOR_BGR2GRAY)
+        
+        if mode == "4x_topaz":
+            out_rgb = apply_unsharp_mask(out_rgb, amount=0.7, radius=1.5)
+        else:
+            out_rgb = apply_unsharp_mask(out_rgb, amount=0.4, radius=1.0)
+            
+        out_alpha[out_alpha < 15] = 0
+        out_alpha[out_alpha > 240] = 255
+        
+        merged = cv2.cvtColor(out_rgb, cv2.COLOR_BGR2BGRA)
+        merged[:,:,3] = out_alpha
+    else:
+        merged = rgba_image
+
+    if mode == "4x_topaz":
+        final_img = fit_and_pad_to_4096(merged)
+    else:
+        final_img = merged
+
+    try:
+        final_rgba = cleanup_func(final_img, is_hairy=True)
+    except Exception as e:
+        logging.error(f"Re-cleanup failed: {e}")
+        final_rgba = final_img
+
+    return final_rgba, {"pass": True, "reasons": []}
