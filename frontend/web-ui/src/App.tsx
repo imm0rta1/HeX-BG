@@ -254,6 +254,7 @@ function App() {
                   className="w-full bg-black/50 border border-white/10 text-gray-300 p-2.5 text-[10px] tracking-wider focus:outline-none focus:border-[#D4FF00] transition-colors appearance-none cursor-pointer"
                 >
                   <option value="isnet-general-use">ISNet [ High Freq / Hair ]</option>
+                  <option value="birefnet-general">BiRefNet [ SOTA Quality (Slow) ]</option>
                   <option value="u2net">U2NET [ Standard ]</option>
                   <option value="isnet-anime">ISNet Anime [ Vector ]</option>
                   <option value="u2netp">U2NETp [ Fast ]</option>

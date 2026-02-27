@@ -1,4 +1,6 @@
 #!/bin/bash
+export LD_LIBRARY_PATH=$(find /opt/venv/lib/python3.13/site-packages/nvidia -type d -name lib | tr '
+' ':')"$LD_LIBRARY_PATH"
 export LD_LIBRARY_PATH=/usr/lib/wsl/drivers/nvaci.inf_amd64_011de684f165cb6f:$LD_LIBRARY_PATH
 pkill -9 -f 'uvicorn'
 pkill -9 -f 'rq worker'
