@@ -28,6 +28,45 @@ function App() {
   const [bgMode, setBgMode] = useState<string>('checkerboard');
   const [customBg, setCustomBg] = useState<string>('#FF00FF');
   const [zoom, setZoom] = useState<number>(1);
+  const [engineState, setEngineState] = useState<'idle' | 'warming' | 'ready'>('ready');
+  const isBiRefNet = modelName.toLowerCase().includes("birefnet");
+
+  const pollPreloadStatus = (id: string) => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/v1/jobs/${id}`);
+        if (!res.ok) throw new Error("Server error");
+        const data = await res.json();
+        if (data.status === 'done') {
+          clearInterval(interval);
+          setEngineState('ready');
+        } else if (data.status === 'failed' || data.status === 'error') {
+          clearInterval(interval);
+          setEngineState('idle');
+        }
+      } catch (e) {
+        clearInterval(interval);
+        setEngineState('idle');
+      }
+    }, 1000);
+  };
+
+  const onModelChange = async (value: string) => {
+    setModelName(value);
+    setEngineState('warming');
+    try {
+      const formData = new FormData();
+      formData.append('model_name', value);
+      const res = await fetch('/api/v1/jobs/preload', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error("Failed to preload");
+      const data = await res.json();
+      pollPreloadStatus(data.job_id);
+    } catch (e) {
+      console.error(e);
+      setEngineState('idle');
+    }
+  };
+
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -242,15 +281,29 @@ function App() {
 
           {/* PARAMETERS */}
           <div className="flex flex-col gap-5">
-            <div className="text-[10px] tracking-[0.2em] text-gray-500 uppercase border-b border-white/10 pb-2">
-              Extraction Parameters
+            <div className="flex justify-between items-center pb-2 border-b border-white/10">
+              <span className="text-[10px] tracking-[0.2em] text-gray-500 uppercase">
+                Extraction Parameters
+              </span>
+              {engineState === 'warming' && (
+                <span className="text-[9px] tracking-[0.2em] text-[#00F0FF] animate-pulse flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#00F0FF]"></div>
+                  WARMING UP...
+                </span>
+              )}
+              {engineState === 'ready' && (
+                <span className="text-[9px] tracking-[0.2em] text-[#D4FF00] flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#D4FF00]"></div>
+                  ENGINE READY
+                </span>
+              )}
             </div>
 
             <div className="space-y-4">
               <div className="relative">
                 <select
                   value={modelName}
-                  onChange={(e) => setModelName(e.target.value)}
+                  onChange={(e) => onModelChange(e.target.value)}
                   className="w-full bg-black/50 border border-white/10 text-gray-300 p-2.5 text-[10px] tracking-wider focus:outline-none focus:border-[#D4FF00] transition-colors appearance-none cursor-pointer"
                 >
                   <option value="isnet-general-use">ISNet [ High Freq / Hair ]</option>
@@ -274,10 +327,12 @@ function App() {
 
               <div className="relative pt-1">
                 <label className="text-[9px] tracking-widest text-gray-500 block mb-2 uppercase">Neural Upscale Mode</label>
+                
                 <div className="relative">
                   <select
                     value={upscaleMode}
                     onChange={(e) => setUpscaleMode(e.target.value)}
+                    
                     className="w-full bg-black/50 border border-white/10 text-gray-300 p-2 text-[10px] tracking-wider focus:outline-none focus:border-[#D4FF00] transition-colors appearance-none cursor-pointer"
                   >
                     <option value="none">None [ Native Res ]</option>
@@ -312,13 +367,16 @@ function App() {
           <div className="mt-auto flex flex-col gap-3 pt-6 border-t border-white/10">
             <button
               onClick={uploadAll}
-              disabled={items.length === 0 || isProcessingAny}
+              disabled={items.length === 0 || isProcessingAny || engineState === 'warming'}
               className={`w-full p-4 font-display font-bold text-[11px] tracking-[0.2em] uppercase transition-all flex items-center justify-center gap-2
-                ${isProcessingAny ? 'cyber-button executing' : 
-                  (doneCount === items.length && items.length > 0) ? 'cyber-button' : 'cyber-button ready'} 
+                ${isProcessingAny ? 'cyber-button executing' :
+                  engineState === 'warming' ? 'bg-black/80 text-[#00F0FF]/50 border border-[#00F0FF]/20 shadow-none hover:bg-black/80' :
+                  (doneCount === items.length && items.length > 0) ? 'cyber-button' : 'cyber-button ready'}
                 disabled:opacity-50 disabled:cursor-not-allowed`}
             >
-              {isProcessingAny
+              {engineState === 'warming'
+                ? <span>[ WARMING UP AI... ]</span>
+                : isProcessingAny
                 ? <span>[ EXECUTING {items.filter(i => ['processing', 'queued', 'uploading'].includes(i.status)).length} ]</span>
                 : (doneCount === items.length && items.length > 0 ? <span>[ RE-RUN BATCH ]</span> : <span>[ INITIATE BATCH ]</span>)}
             </button>

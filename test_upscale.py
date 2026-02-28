@@ -1,19 +1,20 @@
 import cv2
-from app.pipeline.upscale import ImageUpscaler
-import time
+import numpy as np
+from app.pipeline.upscale_realesrgan import upscale_and_reclean
 
-print("Loading cutout image...")
-img = cv2.imread('data/test_images/petela_out_perfect_v4.png', cv2.IMREAD_UNCHANGED)
+# Create a simple red square with an alpha channel (like a cutout)
+test_img = np.zeros((100, 100, 4), dtype=np.uint8)
+test_img[20:80, 20:80] = [0, 0, 255, 255] # Red square, fully opaque
 
-print("Initializing Upscaler (EDSR x2)...")
-upscaler = ImageUpscaler(scale=2)
+print("Input Max RGB:", np.max(test_img[:,:,:3]))
 
-print(f"Original shape: {img.shape} (Width x Height x Channels)")
-
-start = time.time()
-print("Upsampling using AI (this may take a few seconds on CPU)...")
-result = upscaler.process(img)
-print(f"Upscaled shape: {result.shape} in {time.time()-start:.2f}s")
-
-cv2.imwrite('data/test_images/petela_upscaled.png', result)
-print("Saved to data/test_images/petela_upscaled.png")
+# Test the full upscale pipeline
+try:
+    out_img, _ = upscale_and_reclean(test_img, "2x")
+    print("Final Max RGB:", np.max(out_img[:,:,:3]))
+    if np.max(out_img[:,:,:3]) == 0:
+        print("\nRESULT: PURE BLACK! The PyTorch CUDA bug is confirmed.")
+    else:
+        print("\nRESULT: Normal. The bug is somewhere else.")
+except Exception as e:
+    print(f"\nError during upscale: {e}")
